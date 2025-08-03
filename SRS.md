@@ -1,4 +1,4 @@
-*Document Version: 2.0*  
+*Document Version: 2.1*  
 *Last Updated: August 3, 2025*  
 *Document Owner: Aditya Tripathi*  
 *Status: Draft*  
@@ -29,16 +29,16 @@
 ## 1. Introduction
 
 ### 1.1 Purpose
-This Software Requirements Specification (SRS) document defines the functional and non-functional requirements for the Universal Authentication Platform (UAP). UAP is designed as a plug-and-play authentication microservice that seamlessly integrates with existing applications without requiring changes to their user management systems.
+This Software Requirements Specification (SRS) document outlines the functional and non-functional requirements for the Universal Authentication Platform (UAP). UAP is a lightweight, configuration-driven authentication microservice that integrates into existing application stacks. It requires minimal setup, focusing purely on authentication logic and leaving user management and business logic entirely to the host application.
 
 ### 1.2 Scope
-The UAP is a lightweight, configurable authentication microservice that connects to existing project databases or APIs to provide secure authentication services. The system focuses on authentication logic while leaving user management, role management, and business logic to the host application.
+UAP serves as a microservice-based authentication solution, designed to eliminate the need for developing custom authentication code. It connects to existing user data via database credentials or APIs and provides secure authentication services. The host application retains full ownership of user, role, and business management, with UAP concentrating solely on authentication.
 
 ### 1.3 Core Philosophy
-- **Zero Business Logic**: UAP handles only authentication, not user or role management
-- **Seamless Integration**: Plug-and-play with existing project architectures
-- **Configuration-Driven**: Adapt to any project through configuration
-- **Middleware Approach**: Additional security features as optional middleware layers
+- **Zero Business Logic**: UAP focuses exclusively on authentication, with zero responsibility for user, role, or business logic
+- **Seamless Integration**: Provides configuration-driven integration with existing architectures
+- **Minimal Prerequisites**: Hosts provide only database credentials or API endpoints
+- **Extensible via Middleware**: Supports optional security middleware (CAPTCHA, SMS verification, MFA) tailored to organizational needs
 
 ### 1.4 Definitions and Acronyms
 
@@ -52,15 +52,48 @@ The UAP is a lightweight, configurable authentication microservice that connects
 
 ---
 
+## 1.5 Integration Prerequisites
+
+### Host Application Requirements
+Before integrating UAP, host applications must provide:
+
+#### 1.5.1 Data Access Configuration
+**Option A - Database Access**:
+- Database connection credentials (read-only recommended)
+- User table schema with field mappings
+- Role table schema (if applicable)
+- Password hashing algorithm details
+
+**Option B - API Access**:
+- User authentication API endpoint
+- Role retrieval API endpoint (if applicable)
+- API authentication credentials
+- Request/response format specifications
+
+#### 1.5.2 Authentication Requirements
+- Authentication type (username/email/phone/custom)
+- Authentication field mappings
+- Password validation rules
+- Session management preferences
+- Device access policies
+
+#### 1.5.3 Security Requirements
+- Required middleware components (CAPTCHA, SMS, MFA)
+- Rate limiting preferences
+- Account lockout policies
+- Custom security requirements
+
+---
+
 ## 2. System Overview
 
 ### 2.1 System Architecture
-UAP operates as a packaged library/microservice that integrates directly into a single host application:
-- Connects to host application's existing user data (database tables or APIs)
-- Provides authentication services within the host application's architecture
-- Returns authentication results to host application components
-- Maintains minimal session state only for authentication purposes
-- Supports host application's multi-tenant architecture if applicable
+UAP functions as a dedicated authentication microservice within a host application ecosystem:
+- Utilizes provided database credentials or APIs to access existing user and role data
+- Supplies a comprehensive authentication API for seamless user validation
+- Offers configuration-driven session management with customizable expiration and device policies
+- Operates without retaining sensitive user data, ensuring stateless operation outside session state
+- Supports multi-tenant architectures with flexible data isolation strategies
 
 ### 2.2 Integration Model
 ```
@@ -89,21 +122,21 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 ### 3.1 Core Authentication Engine
 
 #### 3.1.1 Dynamic Authentication Service (FR-AUTH-001)
-**Description**: System shall provide configurable authentication logic that adapts to host application requirements
+**Description**: System shall offer flexible authentication configuration tailored to host application requirements
 
 **User Stories**:
-- As a developer, I want to configure UAP to authenticate against my existing user table
-- As a developer, I want to specify which fields to use for authentication (username/email/phone)
-- As a developer, I want to define custom password validation rules
-- As a developer, I want UAP to work with my existing password hashing scheme
+- As a developer, I want to configure UAP to authenticate using either database credentials or API endpoints
+- As a developer, I want to define field mappings for authentication (e.g., username or email)
+- As a developer, I want the flexibility to apply custom password policies and hashing algorithms
+- As a developer, I want UAP to support our specific authentication fields and logic through configuration
 
 **Acceptance Criteria**:
-- Support multiple authentication field combinations (username+password, email+password, phone+password, custom fields)
-- Support various password hashing algorithms (bcrypt, Argon2, PBKDF2, SHA256, custom)
-- Validate credentials against host application's data source
-- Return standardized authentication response regardless of underlying data structure
-- Support custom authentication logic through configuration
-- Handle authentication field normalization (case sensitivity, trimming, etc.)
+- Configurable authentication field combinations (including custom)
+- Compatibility with diverse password hash algorithms (bcrypt, Argon2, SHA256)
+- Credentials validation through structured database/API calls
+- Consistent authentication responses across varied data structures
+- Customizable authentication logic
+- Field normalization (handling case sensitivity, trimming)
 
 #### 3.1.2 Multi-Source Data Connectivity (FR-AUTH-002)
 **Description**: System shall connect to various data sources within the host application for user authentication
@@ -125,22 +158,20 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 - Support both user table + role table database approach OR user/role API approach
 
 #### 3.1.3 Flexible Authentication Flows (FR-AUTH-003)
-**Description**: System shall support various authentication flow patterns
+**Description**: System shall support various flexible authentication flow configurations
 
 **User Stories**:
-- As a developer, I want to implement standard login/logout flow
-- As a developer, I want to support "remember me" functionality
-- As a developer, I want to implement password reset workflow
-- As a developer, I want to customize authentication response format
+- As a developer, I want to integrate UAP's authentication APIs into my application's login/logout functionality
+- As a developer, I need support for "remember me" features with prolonged session management
+- As a developer, I want customizable password reset flows that our application initiates
+- As a developer, I require the ability to customize authentication responses to suit our application's needs
 
 **Acceptance Criteria**:
-- Support standard username/password authentication
-- Support token-based authentication (JWT, custom tokens)
-- Support session-based authentication with configurable expiry
-- Support "remember me" with extended session duration
-- Support password reset initiation (delegates actual reset to host application)
-- Return configurable authentication response payload
-- Support authentication status codes and error messages
+- Compatibility with username/password and token-based authentication (e.g., JWT)
+- Configurable session management, including extended durations for "remember me"
+- Password reset initiation and handling delegated to host application
+- Customizable responses from UAP's authentication APIs
+- Configurable error messaging and status codes
 
 ### 3.2 Session Management
 
@@ -217,25 +248,25 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 - Implement alerting for service degradation
 - Provide debugging endpoints for troubleshooting
 
-### 3.4 Security Core Features
+### 3.4 Security Features
 
-#### 3.4.1 Threat Protection (FR-SECURITY-001)
-**Description**: System shall implement core security protections
+#### 3.4.1 Core Threat Protection (FR-SECURITY-001)
+**Description**: System shall offer essential security features to protect authentication services
 
 **User Stories**:
-- As a developer, I want UAP to protect against brute force attacks
-- As a developer, I want rate limiting on authentication attempts
-- As a developer, I want to detect suspicious login patterns
-- As a developer, I want to log security events
+- As a developer, I require UAP to shield our app from brute force intrusions
+- As a developer, I want controls like rate limiting on login attempts
+- As a developer, I need to identify and respond to unusual login behavior
+- As a developer, I demand comprehensive security event logging
 
 **Acceptance Criteria**:
-- Implement configurable rate limiting per IP/user
-- Support account lockout after failed attempts
-- Detect and log suspicious authentication patterns
-- Implement CAPTCHA integration points for middleware
-- Support IP whitelisting/blacklisting
-- Provide security event logging
-- Support geolocation-based access controls
+- Configurable rate limiting per IP/user
+- Lockout policies following consecutive failed logins
+- Detection and logging for unusual login attempts
+- Middleware points for CAPTCHA and other security checks
+- Support for IP whitelisting and blacklisting
+- Detailed security event logging
+- Incorporates geolocation-based access constraints
 
 #### 3.4.2 Token Security (FR-SECURITY-002)
 **Description**: System shall implement secure token management
@@ -899,6 +930,66 @@ GET /api/v1/status/{app_id}
 - Error rate tracking
 - Resource utilization monitoring
 
+### 9.3 Custom Middleware Framework
+
+#### 9.3.1 Custom Middleware Development (MW-CUSTOM-001)
+**Description**: Framework for developing custom middleware based on organizational requirements
+
+**Interface Specification**:
+```python
+class CustomMiddleware:
+    def __init__(self, config: dict):
+        """Initialize with configuration"""
+        pass
+    
+    def pre_authenticate(self, request: AuthRequest) -> MiddlewareResponse:
+        """Execute before authentication"""
+        pass
+    
+    def post_authenticate(self, user: User, session: Session) -> MiddlewareResponse:
+        """Execute after successful authentication"""
+        pass
+    
+    def on_failure(self, request: AuthRequest, error: AuthError) -> MiddlewareResponse:
+        """Execute on authentication failure"""
+        pass
+```
+
+**Custom Middleware Examples**:
+- **Compliance Middleware**: Industry-specific compliance checks
+- **Risk Assessment**: Custom risk scoring based on business rules
+- **Integration Middleware**: Connect to third-party services
+- **Audit Middleware**: Enhanced audit logging for regulatory requirements
+
+#### 9.3.2 Middleware Configuration (MW-CONFIG-001)
+**Description**: Dynamic middleware configuration and ordering
+
+**Configuration Example**:
+```json
+{
+  "middleware_pipeline": [
+    {
+      "name": "rate_limiter",
+      "type": "built-in",
+      "order": 1,
+      "config": {"max_attempts": 5}
+    },
+    {
+      "name": "custom_compliance_check",
+      "type": "custom",
+      "order": 2,
+      "config": {"compliance_api": "/api/compliance"}
+    },
+    {
+      "name": "mfa",
+      "type": "built-in",
+      "order": 3,
+      "config": {"required_for_roles": ["admin"]}
+    }
+  ]
+}
+```
+
 ---
 
 ## 10. Acceptance Criteria
@@ -985,8 +1076,108 @@ GET /api/v1/status/{app_id}
 
 ---
 
+## 11. Implementation Architecture
+
+### 11.1 Microservice Integration Pattern
+
+#### 11.1.1 Integration Architecture
+```
+┌────────────────────────────────────────────────────────┐
+│              Host Application Environment               │
+│                                                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
+│  │   Frontend   │  │   Backend   │  │  User Data  │   │
+│  │     Apps     │  │   Services  │  │   Storage   │   │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘   │
+│         │                 │                 │           │
+│         │    Auth Request │                 │           │
+│         └────────────────►│                 │           │
+│                          │                 │           │
+│                          ▼                 │           │
+│               ┌──────────────────┐         │           │
+│               │  UAP Microservice │◄────────┘           │
+│               │                  │                     │
+│               │ • Auth Engine    │                     │
+│               │ • Session Mgmt   │                     │
+│               │ • Middleware     │                     │
+│               └──────────────────┘                     │
+└────────────────────────────────────────────────────────┘
+```
+
+#### 11.1.2 API Flow Example
+```python
+# Host application integration example
+def login(username, password):
+    # Call UAP authentication API
+    response = uap_client.authenticate({
+        'username': username,
+        'password': password,
+        'app_id': 'my_app',
+        'device_info': get_device_info()
+    })
+    
+    if response.success:
+        # Use session token from UAP
+        session_token = response.session_token
+        # Continue with application logic
+        return redirect_to_dashboard(session_token)
+    else:
+        return show_error(response.error)
+```
+
+### 11.2 Configuration-Driven Approach
+
+#### 11.2.1 Minimal Configuration Example
+```yaml
+# uap-config.yaml
+app_id: my_application
+data_source:
+  type: database
+  connection:
+    host: db.myapp.com
+    database: users_db
+    username: readonly_user
+    password: ${DB_PASSWORD}
+    
+authentication:
+  fields:
+    identifier: email
+    password: password_hash
+  hashing:
+    algorithm: bcrypt
+    
+session:
+  expiry: 3600
+  single_device: true
+```
+
+#### 11.2.2 API-Based Configuration Example
+```yaml
+# uap-config-api.yaml
+app_id: microservice_app
+data_source:
+  type: api
+  endpoints:
+    authenticate: https://user-service/api/auth
+    get_roles: https://role-service/api/user/{id}/roles
+  headers:
+    Authorization: Bearer ${API_TOKEN}
+    
+authentication:
+  fields:
+    identifier: username
+    password: password
+    
+middleware:
+  - captcha:
+      provider: recaptcha
+      threshold: 0.7
+  - mfa:
+      required_for: [admin, super_user]
+```
+
 ## Conclusion
 
-The Universal Authentication Platform will provide a comprehensive solution for modern identity and access management. By tackling the outlined functional and non-functional requirements, the UAP aims to deliver a secure, scalable, and user-friendly experience.
+The Universal Authentication Platform (UAP) provides a comprehensive, configuration-driven authentication microservice that eliminates the need for organizations to develop authentication code. By focusing purely on authentication logic while leaving user management and business logic to host applications, UAP offers a clean, scalable solution that integrates seamlessly into existing application stacks.
 
 ---
