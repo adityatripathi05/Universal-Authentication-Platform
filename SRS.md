@@ -1,5 +1,5 @@
-*Document Version: 2.1*  
-*Last Updated: August 3, 2025*  
+*Document Version: 2.2*  
+*Last Updated: August 3, 2025*
 *Document Owner: Aditya Tripathi*  
 *Status: Draft*  
 *Classification: Internal*
@@ -458,10 +458,11 @@ UAP runs as middleware in host application's request pipeline
 - **Data Storage**: UAP stores minimal operational data only
 
 #### 6.2.2 Support Boundaries
-- **Configuration Support**: Assistance with UAP configuration only
+- **Configuration Support**: Assistance with UAP configuration and requirements analysis
 - **Integration Support**: General integration guidance, not host application debugging
-- **Custom Development**: No custom feature development for specific clients
+- **Custom Middleware Development**: UAP develops custom middleware based on customer requirements
 - **Data Migration**: No user data migration services
+- **Ongoing Maintenance**: UAP maintains and updates custom middleware as part of service
 
 ### 6.3 Operational Constraints
 
@@ -933,9 +934,15 @@ GET /api/v1/status/{app_id}
 ### 9.3 Custom Middleware Framework
 
 #### 9.3.1 Custom Middleware Development (MW-CUSTOM-001)
-**Description**: Framework for developing custom middleware based on organizational requirements
+**Description**: UAP develops custom middleware tailored to specific organizational requirements. This removes the need for customers to create middleware themselves.
 
-**Interface Specification**:
+**Development Process**:
+1. **Requirement Analysis**: Understand customer-specific authentication needs
+2. **Custom Development**: UAP's team creates custom middleware based on analysis
+3. **Integration**: UAP integrates the custom middleware into the customer's deployment
+4. **Testing and Deployment**: Ensure middleware works seamlessly with existing components
+
+**Interface Specification** (For Understanding Purposes Only):
 ```python
 class CustomMiddleware:
     def __init__(self, config: dict):
@@ -955,11 +962,11 @@ class CustomMiddleware:
         pass
 ```
 
-**Custom Middleware Examples**:
-- **Compliance Middleware**: Industry-specific compliance checks
-- **Risk Assessment**: Custom risk scoring based on business rules
-- **Integration Middleware**: Connect to third-party services
-- **Audit Middleware**: Enhanced audit logging for regulatory requirements
+**Examples of Custom Middleware UAP Can Develop**:
+- **Compliance Middleware**: Implement industry-specific standards (e.g., HIPAA)
+- **Risk Assessment**: Address specific business risk protocols
+- **Integration Middleware**: Enable seamless third-party integrations
+- **Audit Middleware**: Enhance logging for compliance reporting
 
 #### 9.3.2 Middleware Configuration (MW-CONFIG-001)
 **Description**: Dynamic middleware configuration and ordering
