@@ -341,16 +341,25 @@ class AuthenticationResult:
 class PasswordHasher:
     def __init__(self, algorithm: str = "bcrypt"):
         self.pwd_context = CryptContext(
-            schemes=["bcrypt", "pbkdf2_sha256", "argon2"],
+            schemes=["bcrypt", "argon2", "pbkdf2_sha256"],
             deprecated="auto"
         )
         self.algorithm = algorithm
-    
+
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         return self.pwd_context.verify(plain_password, hashed_password)
-    
+
     def hash_password(self, password: str) -> str:
         return self.pwd_context.hash(password)
+
+    def verify_and_upgrade_password(self, plain_password: str, hashed_password: str) -> (bool, Optional[str]):
+        """
+        Verifies a password and checks if the hash needs to be upgraded.
+        Returns a tuple of (is_valid, new_hash).
+        new_hash is not None if the password is valid and the hash uses a deprecated algorithm.
+        """
+        is_valid, new_hash = self.pwd_context.verify_and_update(plain_password, hashed_password)
+        return is_valid, new_hash
 
 class AuthenticationEngine:
     def __init__(self, config: ConfigurationManager, data_access_layer):
@@ -385,22 +394,30 @@ class AuthenticationEngine:
                     error="User not found"
                 )
             
-            # Verify password
+            # Verify password and check for potential upgrade
             stored_password_hash = user_data.get(self.config.password_field)
-            if not self.password_hasher.verify_password(password, stored_password_hash):
+            is_valid, new_hash = self.password_hasher.verify_and_upgrade_password(password, stored_password_hash)
+
+            if not is_valid:
                 return AuthenticationResult(
                     success=False,
                     error="Invalid credentials"
                 )
-            
+
             # Remove sensitive data from response
-            safe_user_data = {k: v for k, v in user_data.items() 
-                            if k != self.config.password_field}
-            
+            safe_user_data = {k: v for k, v in user_data.items()
+                              if k != self.config.password_field}
+
+            # Include metadata about hash upgrade
+            auth_metadata = {"auth_method": self.config.auth_type}
+            if new_hash:
+                auth_metadata["new_hash"] = new_hash
+                auth_metadata["hash_upgraded"] = True
+
             return AuthenticationResult(
                 success=True,
                 user_data=safe_user_data,
-                metadata={"auth_method": self.config.auth_type}
+                metadata=auth_metadata
             )
             
         except Exception as e:
@@ -598,9 +615,21 @@ class SessionManager:
     
     async def _invalidate_other_sessions(self, user_id: str, current_session_id: str):
         """Invalidate all other sessions for a user (single device policy)"""
-        # This would require maintaining a user->sessions mapping
-        # Implementation depends on specific requirements
-        pass
+        user_sessions_key = f"user_sessions:{user_id}"
+        
+        # Get all previous session IDs for the user
+        other_session_ids = await self.redis_client.smembers(user_sessions_key)
+        
+        # Invalidate all old sessions
+        if other_session_ids:
+            session_keys_to_delete = [f"session:{sid}" for sid in other_session_ids]
+            await self.redis_client.delete(*session_keys_to_delete)
+        
+        # Clear the user's session set and add only the new session
+        pipe = self.redis_client.pipeline()
+        pipe.delete(user_sessions_key)
+        pipe.sadd(user_sessions_key, current_session_id)
+        await pipe.execute()
 ```
 
 ### 4. Data Access Layer
@@ -737,8 +766,8 @@ class APIAccessLayer(DataAccessLayer):
 class DataAccessFactory:
     @staticmethod
     def create_data_access_layer(config: ConfigurationManager) -> DataAccessLayer:
-        """Factory method to create appropriate data access layer"""
-        if hasattr(config, 'host_api_base_url') and config.host_api_base_url:
+        """Factory method to create appropriate data access layer based on explicit config."""
+        if getattr(config, 'data_source_type', 'database') == 'api':
             return APIAccessLayer(config)
         else:
             return DatabaseAccessLayer(config)
@@ -1131,14 +1160,17 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 
 class ConfigurationRequest(BaseModel):
+    # Note: In a real implementation, sensitive fields like host_db_url 
+    # should be encrypted client-side before being sent to this API.
+    data_source_type: str = "database" # 'database' or 'api'
     auth_type: str
     username_field: Optional[str] = "username"
     password_field: str = "password"
     email_field: Optional[str] = None
     phone_field: Optional[str] = None
-    host_db_url: str
-    host_user_table: str
-    host_role_table: Optional[str] = None
+    host_db_url: Optional[str] = None
+    host_user_table: Optional[str] = None
+    host_api_base_url: Optional[str] = None
     session_duration: int = 3600
     max_session_duration: int = 86400
     multi_device_sessions: bool = True
@@ -1161,9 +1193,11 @@ async def update_configuration(
     config_request: ConfigurationRequest,
     config_manager = Depends(get_config_manager),
     data_access_factory = Depends(get_data_access_factory)
+    # Note: This endpoint must be protected by a privileged API key,
+    # MFA, and IP whitelisting as per NFR-SEC-002.
 ):
     """
-    Update UAP configuration
+    Update UAP configuration.
     """
     try:
         # Create temporary config for validation
@@ -2965,10 +2999,11 @@ uap/
 │   │   └── manager.py
 │   └── middleware/
 │       ├── __init__.py
+│       ├── sdk.py
 │       ├── base.py
 │       ├── rate_limit.py
 │       ├── captcha.py
-│       └── custom.py
+│       └── custom_loader.py
 ├── api/
 │   ├── __init__.py
 │   ├── v1/

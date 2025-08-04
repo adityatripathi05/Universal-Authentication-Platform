@@ -58,24 +58,24 @@ UAP serves as a microservice-based authentication solution, designed to eliminat
 Before integrating UAP, host applications must provide:
 
 #### 1.5.1 Data Access Configuration
-**Option A - Database Access**:
-- Database connection credentials (read-only recommended)
-- User table schema with field mappings
-- Role table schema (if applicable)
-- Password hashing algorithm details
+**Option A - API Access (Recommended)**:
+- User authentication API endpoint.
+- Role retrieval API endpoint (if applicable).
+- Secure API authentication credentials (e.g., OAuth token, API Key).
+- This is the most secure and recommended pattern as it avoids sharing database credentials.
 
-**Option B - API Access**:
-- User authentication API endpoint
-- Role retrieval API endpoint (if applicable)
-- API authentication credentials
-- Request/response format specifications
+**Option B - Database Access**:
+- Strictly read-only database connection credentials.
+- User table schema with field mappings.
+- Role table schema (if applicable).
+- This approach is supported for legacy systems but is less secure than the API method.
 
 #### 1.5.2 Authentication Requirements
-- Authentication type (username/email/phone/custom)
-- Authentication field mappings
-- Password validation rules
-- Session management preferences
-- Device access policies
+- **Authentication Type**: Standard (username/password), email-based, phone-based, or custom.
+- **Authentication Fields**: Specify which fields to use for authentication (e.g., primary identifier, password field).
+- **Password Hashing Policy**: UAP shall only support strong, modern hashing algorithms (e.g., Argon2, bcrypt). The system must reject configurations that specify weak or deprecated algorithms.
+- **Legacy Hash Upgrades**: For host applications with legacy password hashes (e.g., SHA1, MD5), UAP shall provide a seamless upgrade mechanism. Upon a user's first successful login, UAP will re-hash their password using a modern algorithm and the host application will be notified to update the user's record.
+- **Session Management Preferences**: Define session timeouts, role-based expiry, and device policies.
 
 #### 1.5.3 Security Requirements
 - Required middleware components (CAPTCHA, SMS, MFA)
@@ -347,10 +347,21 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 - **Memory Protection**: Clear sensitive data from memory after use
 
 #### 4.4.2 Access Control (NFR-SEC-002)
-- **API Security**: Secure UAP management APIs with authentication
-- **Configuration Access**: Role-based access to configuration management
-- **Audit Logging**: Log all configuration changes and administrative actions
-- **Principle of Least Privilege**: Minimal database permissions required
+- **Management API Security**: The UAP management and configuration APIs shall be secured with a separate, highly-privileged API key.
+- **Configuration Access Control**: Configuration changes shall require Multi-Factor Authentication (MFA) and can be restricted to whitelisted IP addresses.
+- **Audit Logging**: All configuration changes and administrative actions must be logged in detail.
+- **Principle of Least Privilege**: The UAP service must operate with the minimum required permissions for any integrated data source.
+
+### 4.5 Data Privacy and Compliance Requirements
+
+#### 4.5.1 Data Residency (NFR-COMP-001)
+- The system shall support deployment in specific geographic regions (e.g., EU, US) to comply with data residency requirements.
+
+#### 4.5.2 Data Minimization (NFR-COMP-002)
+- The system must only process and cache the minimum data necessary to perform authentication and session management. It shall not persist sensitive user data like passwords.
+
+#### 4.5.3 Compliance (NFR-COMP-003)
+- The system shall be designed to be compliant with major data privacy regulations, including GDPR and CCPA, providing mechanisms to handle data subject rights such as the right to erasure.
 
 ### 4.5 Integration Requirements
 
@@ -933,40 +944,40 @@ GET /api/v1/status/{app_id}
 
 ### 9.3 Custom Middleware Framework
 
-#### 9.3.1 Custom Middleware Development (MW-CUSTOM-001)
-**Description**: UAP develops custom middleware tailored to specific organizational requirements. This removes the need for customers to create middleware themselves.
+#### 9.3.1 Custom Middleware SDK (MW-CUSTOM-001)
+**Description**: The system shall provide a Middleware SDK to allow host application developers to create their own custom middleware components.
 
-**Development Process**:
-1. **Requirement Analysis**: Understand customer-specific authentication needs
-2. **Custom Development**: UAP's team creates custom middleware based on analysis
-3. **Integration**: UAP integrates the custom middleware into the customer's deployment
-4. **Testing and Deployment**: Ensure middleware works seamlessly with existing components
+**User Stories**:
+- As a developer, I want a well-documented SDK to build custom authentication logic that integrates with UAP.
+- As a security engineer, I want to develop proprietary risk assessment middleware in-house and plug it into the UAP pipeline.
 
-**Interface Specification** (For Understanding Purposes Only):
+**Acceptance Criteria**:
+- The SDK must define a clear, versioned interface for pre-authentication, post-authentication, and failure-handling hooks.
+- The SDK must provide tools for packaging and configuring custom middleware.
+- The SDK must be accompanied by comprehensive documentation and examples.
+
+**Interface Specification** (Illustrative):
 ```python
 class CustomMiddleware:
     def __init__(self, config: dict):
-        """Initialize with configuration"""
+        """Initialize with middleware-specific configuration"""
         pass
     
-    def pre_authenticate(self, request: AuthRequest) -> MiddlewareResponse:
-        """Execute before authentication"""
+    async def pre_authenticate(self, request: AuthRequest) -> MiddlewareResponse:
+        """Logic to execute before core authentication."""
         pass
     
-    def post_authenticate(self, user: User, session: Session) -> MiddlewareResponse:
-        """Execute after successful authentication"""
+    async def post_authenticate(self, user: User, session: Session) -> MiddlewareResponse:
+        """Logic to execute after successful authentication."""
         pass
     
-    def on_failure(self, request: AuthRequest, error: AuthError) -> MiddlewareResponse:
-        """Execute on authentication failure"""
+    async def on_failure(self, request: AuthRequest, error: AuthError) -> MiddlewareResponse:
+        """Logic to execute on authentication failure."""
         pass
 ```
 
-**Examples of Custom Middleware UAP Can Develop**:
-- **Compliance Middleware**: Implement industry-specific standards (e.g., HIPAA)
-- **Risk Assessment**: Address specific business risk protocols
-- **Integration Middleware**: Enable seamless third-party integrations
-- **Audit Middleware**: Enhance logging for compliance reporting
+#### 9.3.2 Professional Services
+For organizations that require assistance or prefer a managed solution, UAP shall offer professional services to develop, test, and maintain custom middleware.
 
 #### 9.3.2 Middleware Configuration (MW-CONFIG-001)
 **Description**: Dynamic middleware configuration and ordering

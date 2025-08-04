@@ -71,22 +71,24 @@ The Universal Authentication Platform provides a microservice-based authenticati
 To integrate UAP into your application stack, you need to provide:
 
 #### 1. **Data Access Configuration**
-Choose one of the following approaches:
-- **Database Approach**: Credentials to access your existing user and role tables
-  - Database connection details (host, port, database name)
-  - Read-only user credentials
-  - User table schema and role table schema
-- **API Approach**: Endpoints for user authentication and role retrieval
+UAP offers flexible data source integration, prioritizing security and ease of use.
+
+- **API Approach (Recommended)**: Provide secure endpoints for user authentication and role retrieval. This is the most secure and recommended integration pattern, as it ensures your database credentials are never shared.
   - User authentication API endpoint
   - Role retrieval API endpoint
-  - API authentication credentials
+  - API authentication credentials (e.g., API Key, OAuth token)
+- **Database Approach**: For legacy systems or specific use cases, you can provide direct, read-only credentials to access your existing user and role tables.
+  - Database connection details (host, port, database name)
+  - Strictly read-only user credentials
+  - User table schema and role table schema
 
 #### 2. **Authentication Configuration**
 - **Authentication Type**: Standard (username/password), email-based, phone-based, or custom
 - **Authentication Fields**: Specify which fields to use for authentication
   - Primary identifier field (username, email, phone, or custom)
-  - Password field name and hashing algorithm
+  - Password field name
   - Any additional custom fields required
+- **Password Hashing Policy**: UAP enforces the use of strong, modern hashing algorithms (e.g., Argon2, bcrypt). For systems using legacy hashes (like SHA1 or MD5), UAP provides a seamless, secure upgrade path by automatically re-hashing passwords to a modern standard upon a user's successful login.
 
 #### 3. **Session Management Requirements**
 - **Session Duration**: Default and maximum session timeouts
@@ -280,10 +282,10 @@ Choose one of the following approaches:
 
 ---
 
-## Custom Middleware Framework
+## Extensible Middleware Framework
 
 ### Extensibility Through Middleware
-UAP's middleware architecture allows organizations to extend authentication functionality based on specific requirements:
+UAP features a powerful and flexible middleware architecture, allowing organizations to inject custom logic and security checks directly into the authentication pipeline.
 
 #### Standard Middleware Components
 - **CAPTCHA Integration**: Google reCAPTCHA, hCaptcha support
@@ -292,21 +294,23 @@ UAP's middleware architecture allows organizations to extend authentication func
 - **Device Fingerprinting**: Track and validate devices
 - **Geolocation Verification**: Location-based access control
 
-#### Custom Middleware Development
-UAP develops custom middleware based on specific organizational requirements. When standard middleware doesn't meet your needs, we create tailored solutions:
+#### Custom Middleware Development with the UAP SDK
+For ultimate flexibility, UAP provides a well-documented **Middleware SDK (Software Development Kit)**. This empowers your development teams to build their own custom middleware components that seamlessly plug into the UAP authentication flow.
 
-**Custom Middleware Development Process**:
-1. **Requirement Analysis**: We analyze your specific authentication needs
-2. **Custom Development**: Our team develops middleware tailored to your requirements
-3. **Integration**: We integrate the custom middleware into your UAP instance
-4. **Testing & Deployment**: Thorough testing ensures seamless operation
+**Benefits of the SDK:**
+- **Full Control**: Implement complex, business-specific logic that is unique to your organization.
+- **Enhanced Security**: Keep proprietary logic in-house, developed and managed by your own team.
+- **Scalable Model**: Avoid dependencies on external development queues and build at your own pace.
+- **Vibrant Ecosystem**: Foster innovation and share solutions within the developer community.
 
-**Examples of Custom Middleware We Can Develop**:
-- **Industry-Specific Compliance**: Banking regulations, healthcare standards (HIPAA), etc.
-- **Custom Risk Assessment**: Business-specific fraud detection and risk scoring
-- **Third-Party Integrations**: Integration with your existing security services
-- **Specialized Authentication Steps**: Unique verification processes for your industry
-- **Custom Audit Requirements**: Enhanced logging for regulatory compliance
+**Examples of Custom Middleware You Can Build:**
+- **Industry-Specific Compliance**: Enforce rules for HIPAA, PCI-DSS, or other regulations.
+- **Custom Risk Assessment**: Integrate with internal fraud detection systems.
+- **Proprietary MFA**: Connect to a homegrown multi-factor authentication solution.
+- **Specialized Audit Logging**: Send detailed, custom-formatted logs to your internal systems.
+
+#### Professional Services
+For organizations that prefer a managed solution, our team offers professional services to design, build, and maintain custom middleware tailored to your specific requirements.
 
 #### Middleware Configuration
 ```json
@@ -323,31 +327,12 @@ UAP develops custom middleware based on specific organizational requirements. Wh
       "config": {"provider": "recaptcha", "threshold": 0.5}
     },
     {
-      "name": "custom_security_check",
+      "name": "custom_risk_engine_check",
       "enabled": true,
-      "config": {"endpoint": "/api/custom-check"}
+      "config": {"sdk_path": "./middleware/risk_engine.py", "failure_mode": "block"}
     }
   ]
 }
-```
-
-### Custom Middleware Interface
-While customers don't develop middleware themselves, understanding our middleware architecture helps in requirement discussions:
-
-```python
-# UAP's Custom Middleware Framework (Internal)
-class CustomAuthMiddleware:
-    def pre_authenticate(self, request):
-        # Pre-authentication custom logic
-        pass
-    
-    def post_authenticate(self, user, session):
-        # Post-authentication custom logic
-        pass
-    
-    def on_failure(self, request, error):
-        # Failure handling custom logic
-        pass
 ```
 
 ### Middleware Execution Flow
@@ -356,13 +341,22 @@ class CustomAuthMiddleware:
 3. **Post-Authentication Phase**: MFA, SMS verification, custom checks
 4. **Session Creation Phase**: Token generation, session storage
 
-### Customer Benefits
-- **No Development Required**: Simply specify your requirements, we handle the implementation
-- **Seamless Integration**: Custom middleware integrates perfectly with standard components
-- **Ongoing Support**: We maintain and update custom middleware as needed
-- **Cost-Effective**: Faster than building authentication from scratch
-
 ---
+
+## Security and Compliance
+
+### Securing the Configuration API
+The `PUT /api/v1/config` endpoint is a powerful administrative tool. UAP ensures its security through multiple layers:
+- **Privileged Access**: Requires a separate, highly-privileged API key, distinct from standard authentication keys.
+- **Multi-Factor Authentication**: Enforces MFA for any user or system initiating a configuration change.
+- **IP Whitelisting**: Access to the configuration API can be restricted to a list of trusted IP addresses.
+- **Detailed Audit Logs**: All configuration changes are logged with details on who made the change, from where, and when.
+
+### Data Privacy and Compliance
+UAP is designed with data privacy as a core principle, helping organizations meet their compliance obligations.
+- **Data Minimization**: UAP only processes the data essential for authentication and session management, and does not persist sensitive user information.
+- **Stateless Architecture**: Beyond session tokens and audit logs, UAP remains stateless regarding your user data.
+- **Compliance Support**: The architecture is designed to be compliant with major data privacy regulations such as GDPR and CCPA, with features supporting data residency requirements and user data rights.
 
 ## Risk Assessment & Mitigation
 
