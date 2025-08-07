@@ -1,5 +1,5 @@
-*Document Version: 3.1*  
-*Last Updated: August 3, 2025*  
+*Document Version: 3.2*  
+*Last Updated: August 7, 2025*  
 *Document Owner: Aditya Tripathi*
 
 ---
@@ -15,7 +15,7 @@
 **Universal Authentication Platform (UAP)**
 
 ### Executive Summary
-The Universal Authentication Platform (UAP) is a lightweight, plug-and-play authentication microservice designed to eliminate the need for organizations to develop authentication code from scratch. UAP seamlessly integrates into existing application stacks as a dedicated authentication service, requiring only configuration of authentication requirements. Organizations provide their database credentials or APIs for accessing user and role data, specify their authentication preferences, and UAP handles all authentication logic while leaving user management and business logic entirely to the host application.
+The Universal Authentication Platform (UAP) is a lightweight, API-driven authentication microservice designed to eliminate the need for organizations to develop authentication code from scratch. UAP integrates into existing application stacks as a dedicated authentication service, requiring only that the host application expose a secure API for credential validation. UAP orchestrates the entire authentication process—including security middleware, MFA, and session management—while the host application retains full control over its user data and business logic.
 
 ---
 
@@ -52,43 +52,43 @@ Modern software development faces several authentication-related challenges:
 The Universal Authentication Platform provides a microservice-based authentication solution that:
 
 - **Serves as a Dedicated Authentication Microservice**: Integrates into any organization's application stack to handle authentication logic
-- **Requires Minimal Prerequisites**: Only needs database credentials or API endpoints to access existing user and role data
+- **Requires Minimal Prerequisites**: Only needs a secure API endpoint from the host application to validate user credentials.
 - **Offers Configuration-Driven Integration**: Host applications specify authentication type, fields (username/email/custom), and session requirements
 - **Provides Complete Authentication APIs**: Host applications use UAP's APIs to authenticate users and manage sessions
-- **Supports Flexible Authentication Schemas**: Adapts to any authentication field combination and password validation rules
+- **Supports Multiple Authentication Schemes**: Provides out-of-the-box support for various authentication strategies, including Basic Auth, JWT, and OAuth 2.0 flows, which UAP orchestrates.
 - **Enables Role-Based Session Management**: Configurable session expiry based on user roles and device policies
 - **Includes Optional Security Middleware**: CAPTCHA, SMS verification, and MFA as add-on layers based on requirements
 - **Maintains Zero Business Logic**: Focuses purely on authentication while host handles user management and permissions
 
 ### Core Value Proposition
-"Eliminate authentication development - Configure your requirements, integrate our APIs, and let UAP handle all authentication logic as a dedicated microservice in your stack"
+"Offload your entire authentication workload. Choose from a variety of authentication schemes like OAuth 2.0, JWT, and more. You provide a simple API for credential validation; UAP handles the complete, complex authentication flow, including security middleware, MFA, session management, and audit logging."
 
 ---
 
 ## Integration Prerequisites
 
+> Host-Provided Credential Validation API (Service-to-Service Security)
+> The host must expose a small, secure API that UAP calls to validate primary credentials (or fetch minimal user metadata). This API must be protected for machine-to-machine access (e.g., API key, mTLS, private networking/IP allow-list, or short-lived tokens via client credentials). This is not end-user authentication—UAP owns the end-user authentication experience (flows, middleware, MFA, sessions, tokens, audit). The host only ensures that only UAP can call the validation endpoint and retains full data ownership without sharing database credentials.
+
 ### Host Application Requirements
-To integrate UAP into your application stack, you need to provide:
+To integrate UAP, your application must expose a secure API endpoint that UAP can call to validate user credentials. This API-only approach ensures your user data and database credentials are never exposed to UAP, providing maximum security and data privacy.
 
-#### 1. **Data Access Configuration**
-UAP offers flexible data source integration, prioritizing security and ease of use.
+#### 1. **Host-Provided Authentication API**
+You provide a secure API endpoint that UAP calls to validate a user's credentials.
+- **Endpoint URL**: The URL for your credential validation endpoint.
+- **API Credentials**: A secure token (e.g., API Key, OAuth token) for UAP to authenticate itself to your API. This is for **service-to-service authentication** to ensure only UAP can call your validation endpoint; it is not end-user authentication.
+- **Request/Response Schema**: A clearly defined contract for how UAP will send credentials and what it expects in return (e.g., `{"success": true, "user_id": "123"}`).
 
-- **API Approach (Recommended)**: Provide secure endpoints for user authentication and role retrieval. This is the most secure and recommended integration pattern, as it ensures your database credentials are never shared.
-  - User authentication API endpoint
-  - Role retrieval API endpoint
-  - API authentication credentials (e.g., API Key, OAuth token)
-- **Database Approach**: For legacy systems or specific use cases, you can provide direct, read-only credentials to access your existing user and role tables.
-  - Database connection details (host, port, database name)
-  - Strictly read-only user credentials
-  - User table schema and role table schema
+#### 2. **(Optional) Host-Provided User Info API**
+If you want UAP to enforce role-based session policies, you can provide an optional endpoint for retrieving user details or roles.
+- **Endpoint URL**: The URL for your user information endpoint.
+- **API Credentials**: Secure token for authentication.
 
-#### 2. **Authentication Configuration**
-- **Authentication Type**: Standard (username/password), email-based, phone-based, or custom
-- **Authentication Fields**: Specify which fields to use for authentication
-  - Primary identifier field (username, email, phone, or custom)
-  - Password field name
-  - Any additional custom fields required
-- **Password Hashing Policy**: UAP enforces the use of strong, modern hashing algorithms (e.g., Argon2, bcrypt). For systems using legacy hashes (like SHA1 or MD5), UAP provides a seamless, secure upgrade path by automatically re-hashing passwords to a modern standard upon a user's successful login.
+#### 2. **Authentication Scheme Configuration**
+You configure UAP to use the authentication scheme that best fits your needs. UAP manages the entire flow for the chosen scheme.
+- **Scheme Selection**: Choose from a variety of industry-standard authentication schemes provided by UAP, such as OAuth 2.0 (all major flows), JWT-based authentication, Active Directory (AD), LDAP, or traditional session-based flows.
+- **Scheme-Specific Parameters**: Provide the necessary configuration for the chosen scheme (e.g., OAuth client IDs, token signing keys, redirect URIs).
+- **Password Policy**: While your application validates the password, UAP's security model assumes you are using modern, strong hashing algorithms (e.g., Argon2, bcrypt).
 
 #### 3. **Session Management Requirements**
 - **Session Duration**: Default and maximum session timeouts
@@ -106,11 +106,11 @@ UAP offers flexible data source integration, prioritizing security and ease of u
 - **Account Lockout**: Failed attempt policies
 
 ### Integration Process Overview
-1. **Configure UAP**: Provide the prerequisites above through UAP's configuration API
-2. **Test Connection**: Validate UAP can access your user data
-3. **Integrate APIs**: Use UAP's authentication APIs in your application
-4. **Configure Middleware**: Add optional security layers as needed
-5. **Go Live**: Deploy UAP as part of your application stack
+1. **Expose Your API**: Create a secure endpoint in your application for credential validation.
+2. **Configure UAP**: Provide the endpoint URL and API credentials to UAP via its configuration API.
+3. **Integrate UAP APIs**: Use UAP's `/authenticate` and `/validate` APIs in your application's login and session-checking logic.
+4. **Configure Middleware**: Add optional security layers like MFA or CAPTCHA through UAP's configuration.
+5. **Go Live**: Deploy UAP alongside your application stack.
 
 ---
 
@@ -118,42 +118,50 @@ UAP offers flexible data source integration, prioritizing security and ease of u
 
 ### Architecture Overview
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Host Application Stack                    │
-│                                                              │
-│  ┌─────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │   Frontend   │    │   Business   │    │   Database/  │  │
-│  │ Application  │    │    Logic     │    │     APIs     │  │
-│  └──────┬──────┘    └──────────────┘    └──────┬───────┘  │
-│         │                                         │          │
-│         │  Authentication Request                 │          │
-│         ▼                                         │          │
-│  ┌─────────────────────────────────────┐         │          │
-│  │          UAP Microservice            │         │          │
-│  │  ┌─────────────────────────────┐    │         │          │
-│  │  │   Configuration Manager      │    │         │          │
-│  │  └─────────────────────────────┘    │         │          │
-│  │  ┌─────────────────────────────┐    │ ◄───────┘          │
-│  │  │   Authentication Engine      │    │   User Data Query  │
-│  │  └─────────────────────────────┘    │                    │
-│  │  ┌─────────────────────────────┐    │                    │
-│  │  │    Session Manager          │    │                    │
-│  │  └─────────────────────────────┘    │                    │
-│  │  ┌─────────────────────────────┐    │                    │
-│  │  │  Optional Middleware Layers  │    │                    │
-│  │  │  • CAPTCHA • SMS • MFA      │    │                    │
-│  │  └─────────────────────────────┘    │                    │
-│  └─────────────────────────────────────┘                    │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                            Host Application Stack                        │
+│                                                                          │
+│  ┌─────────────┐    ┌──────────────┐    ┌──────────────────────────┐  │
+│  │   Frontend   │    │   Business   │    │   Host Authentication    │  │
+│  │ Application  │    │    Logic     │    │   & User Database API    │  │
+│  └──────┬──────┘    └──────┬───────┘    └─────────────┬────────────┘  │
+│         │                  │                          │                │
+│         │ Auth Request     │                          │                │
+│         └─────────────────►│                          │                │
+│                            │                          │                │
+│                            │ UAP /authenticate Call   │                │
+│                            ▼                          │                │
+│  ┌─────────────────────────────────────┐              │                │
+│  │          UAP Microservice            │              │                │
+│  │  ┌─────────────────────────────┐    │              │                │
+│  │  │   Security Middleware      │    │              │                │
+│  │  │  (Rate Limit, CAPTCHA)     │    │              │                │
+│  │  └─────────────┬─────────────┘    │              │                │
+│  │                │                  │  Credential    │                │
+│  │                ▼                  │  Validation    │                │
+│  │  ┌─────────────────────────────┐    │  Request       │                │
+│  │  │   Authentication Engine      │────┼─────────────►│                │
+│  │  └─────────────┬─────────────┘    │◄─┼──────────────┘                │
+│  │                │                  │  Validation    │                │
+│  │                │                  │  Response      │                │
+│  │                ▼                  │                │                │
+│  │  ┌─────────────────────────────┐    │                │                │
+│  │  │      MFA & Session          │    │                │                │
+│  │  │        Management          │    │                │                │
+│  │  └─────────────────────────────┘    │                │                │
+│  └─────────────────────────────────────┘                │                │
+│                                                         │                │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### API Integration Flow
-1. **User Login Request**: Frontend sends credentials to your backend
-2. **UAP Authentication**: Your backend calls UAP's `/authenticate` API
-3. **Data Validation**: UAP queries your database/API to validate credentials
-4. **Middleware Processing**: Optional security checks (CAPTCHA, MFA)
-5. **Session Creation**: UAP creates and returns session token
-6. **Response**: Your backend receives auth result and proceeds accordingly
+1. **User Login Request**: The user submits their credentials to your application's frontend.
+2. **Backend Request to UAP**: Your application's backend receives the credentials and makes a single API call to UAP's `/authenticate` endpoint.
+3. **Pre-Authentication Middleware**: UAP runs pre-authentication checks like rate limiting and CAPTCHA validation.
+4. **Credential Validation via Host API**: UAP calls back to your application's secure, pre-configured authentication endpoint to validate the user's credentials. Your application checks the credentials against your database and returns a simple success or failure response.
+5. **Post-Authentication Middleware**: If credential validation is successful, UAP runs post-authentication checks, such as triggering an MFA flow.
+6. **Session Creation**: UAP generates a secure session token (e.g., JWT).
+7. **Response to Backend**: UAP returns the session token and user information to your backend, which can then establish the user's session.
 
 ### Key UAP APIs
 - `POST /api/v1/authenticate` - Authenticate user credentials
@@ -248,7 +256,6 @@ UAP offers flexible data source integration, prioritizing security and ease of u
 
 #### Product Metrics
 - **Framework Support**: Support for top 10 web frameworks (Django, Flask, Express.js, Spring Boot, etc.)
-- **Database Compatibility**: Support for 8+ major database systems
 - **Documentation Usage**: 80%+ of users successfully integrate using documentation alone
 - **Feature Adoption**: 70%+ adoption of advanced security features (MFA, CAPTCHA)
 

@@ -1,5 +1,5 @@
-*Document Version: 2.2*  
-*Last Updated: August 3, 2025*
+*Document Version: 2.3*  
+*Last Updated: August 7, 2025*
 *Document Owner: Aditya Tripathi*  
 *Status: Draft*  
 *Classification: Internal*
@@ -32,12 +32,12 @@
 This Software Requirements Specification (SRS) document outlines the functional and non-functional requirements for the Universal Authentication Platform (UAP). UAP is a lightweight, configuration-driven authentication microservice that integrates into existing application stacks. It requires minimal setup, focusing purely on authentication logic and leaving user management and business logic entirely to the host application.
 
 ### 1.2 Scope
-UAP serves as a microservice-based authentication solution, designed to eliminate the need for developing custom authentication code. It connects to existing user data via database credentials or APIs and provides secure authentication services. The host application retains full ownership of user, role, and business management, with UAP concentrating solely on authentication.
+UAP serves as a microservice-based authentication solution, designed to eliminate the need for developing custom authentication code. It integrates with a host application via a secure API, allowing the host to retain full control over its user data. UAP orchestrates complex authentication flows (e.g., OAuth 2.0, MFA), manages sessions, and provides a layer of security middleware, while the host application is only responsible for validating the user's primary credentials.
 
 ### 1.3 Core Philosophy
 - **Zero Business Logic**: UAP focuses exclusively on authentication, with zero responsibility for user, role, or business logic
 - **Seamless Integration**: Provides configuration-driven integration with existing architectures
-- **Minimal Prerequisites**: Hosts provide only database credentials or API endpoints
+- **Minimal Prerequisites**: The host application provides a secure API endpoint for credential validation.
 - **Extensible via Middleware**: Supports optional security middleware (CAPTCHA, SMS verification, MFA) tailored to organizational needs
 
 ### 1.4 Definitions and Acronyms
@@ -49,6 +49,8 @@ UAP serves as a microservice-based authentication solution, designed to eliminat
 | Configuration Profile | Set of parameters defining how UAP integrates with a host application |
 | Authentication Adapter | Component that connects UAP to host application's data source |
 | Middleware Layer | Optional security components (MFA, CAPTCHA, etc.) |
+| End-User Authentication | The process of verifying an end-user's identity, managed and orchestrated by UAP (e.g., through OAuth 2.0, JWT flows). |
+| Service-to-Service Authentication | The process of securing the communication between UAP and the host's API, typically using an API key or mTLS. This is distinct from end-user authentication. |
 
 ---
 
@@ -57,25 +59,19 @@ UAP serves as a microservice-based authentication solution, designed to eliminat
 ### Host Application Requirements
 Before integrating UAP, host applications must provide:
 
-#### 1.5.1 Data Access Configuration
-**Option A - API Access (Recommended)**:
-- User authentication API endpoint.
-- Role retrieval API endpoint (if applicable).
-- Secure API authentication credentials (e.g., OAuth token, API Key).
-- This is the most secure and recommended pattern as it avoids sharing database credentials.
+#### 1.5.1 Host Application API Requirements
+The host application must provide a secure API for UAP to interact with.
+- **Credential Validation API Endpoint**: A mandatory endpoint that accepts user credentials from UAP, validates them against the host's user data, and returns a success/failure response.
+- **(Optional) User Info API Endpoint**: An optional endpoint that returns user roles or other metadata, which UAP can use for role-based session policies.
+- **API Security**: The host application must secure these endpoints for service-to-service communication. UAP will use the provided credentials (e.g., API Key, OAuth Token) to authenticate itself. This is to ensure that only UAP can call the validation endpoint and is separate from the end-user authentication that UAP provides.
 
-**Option B - Database Access**:
-- Strictly read-only database connection credentials.
-- User table schema with field mappings.
-- Role table schema (if applicable).
-- This approach is supported for legacy systems but is less secure than the API method.
-
-#### 1.5.2 Authentication Requirements
-- **Authentication Type**: Standard (username/password), email-based, phone-based, or custom.
-- **Authentication Fields**: Specify which fields to use for authentication (e.g., primary identifier, password field).
-- **Password Hashing Policy**: UAP shall only support strong, modern hashing algorithms (e.g., Argon2, bcrypt). The system must reject configurations that specify weak or deprecated algorithms.
-- **Legacy Hash Upgrades**: For host applications with legacy password hashes (e.g., SHA1, MD5), UAP shall provide a seamless upgrade mechanism. Upon a user's first successful login, UAP will re-hash their password using a modern algorithm and the host application will be notified to update the user's record.
-- **Session Management Preferences**: Define session timeouts, role-based expiry, and device policies.
+#### 1.5.2 Authentication Scheme Configuration
+The host application shall configure UAP to use one of its supported authentication schemes.
+- **Scheme Selection**: The host application must select from a list of UAP-supported schemes, including but not limited to:
+  - Standard JWT-based authentication
+  - OAuth 2.0 (Authorization Code, Client Credentials, ROPC flows)
+  - Active Directory (AD) / LDAP integration
+- **Scheme-Specific Parameters**: The host must provide all necessary parameters for the chosen scheme (e.g., OAuth client IDs, redirect URIs, AD server details).
 
 #### 1.5.3 Security Requirements
 - Required middleware components (CAPTCHA, SMS, MFA)
@@ -88,19 +84,17 @@ Before integrating UAP, host applications must provide:
 ## 2. System Overview
 
 ### 2.1 System Architecture
-UAP functions as a dedicated authentication microservice within a host application ecosystem:
-- Utilizes provided database credentials or APIs to access existing user and role data
-- Supplies a comprehensive authentication API for seamless user validation
-- Offers configuration-driven session management with customizable expiration and device policies
-- Operates without retaining sensitive user data, ensuring stateless operation outside session state
-- Supports multi-tenant architectures with flexible data isolation strategies
+UAP functions as a dedicated authentication microservice that orchestrates the authentication process.
+- It integrates with the host application by calling a secure, host-provided API for credential validation.
+- It provides a comprehensive set of APIs for initiating authentication flows and managing sessions.
+- It offers configuration-driven session management, security middleware, and support for multiple authentication schemes.
+- It operates in a stateless manner regarding user data, ensuring the host application remains the sole custodian of sensitive information.
 
 ### 2.2 Integration Model
 ```
-Host Application Components <-> UAP Package <-> Host Application's Data Sources
-                                    |              (Database Tables or APIs)
-                               Middleware Layers
-                           (CAPTCHA, MFA, SMS, etc.)
+Host Application <--> UAP Microservice <--> Host's Auth API
+      |
+      +-----> UAP handles Session Management, MFA, Middleware, etc.
 ```
 
 ### 2.3 Deployment Model
@@ -121,41 +115,23 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 
 ### 3.1 Core Authentication Engine
 
-#### 3.1.1 Dynamic Authentication Service (FR-AUTH-001)
-**Description**: System shall offer flexible authentication configuration tailored to host application requirements
+#### 3.1.1 Authentication Scheme Orchestration (FR-AUTH-001)
+**Description**: The system shall provide and orchestrate a variety of industry-standard authentication schemes, configurable by the host application.
 
 **User Stories**:
-- As a developer, I want to configure UAP to authenticate using either database credentials or API endpoints
-- As a developer, I want to define field mappings for authentication (e.g., username or email)
-- As a developer, I want the flexibility to apply custom password policies and hashing algorithms
-- As a developer, I want UAP to support our specific authentication fields and logic through configuration
+- As a developer, I want to configure UAP to handle an OAuth 2.0 Authorization Code flow for my web application without having to build the OAuth logic myself.
+- As a developer, I want to secure my internal microservices by configuring UAP to use a JWT-based authentication scheme.
+- As an enterprise architect, I want to integrate our existing Active Directory by configuring UAP's LDAP authentication scheme.
 
 **Acceptance Criteria**:
-- Configurable authentication field combinations (including custom)
-- Compatibility with diverse password hash algorithms (bcrypt, Argon2, SHA256)
-- Credentials validation through structured database/API calls
-- Consistent authentication responses across varied data structures
-- Customizable authentication logic
-- Field normalization (handling case sensitivity, trimming)
+- The system must support the configuration and execution of multiple authentication schemes, including, but not limited to:
+  - JWT-based Authentication
+  - OAuth 2.0 (Authorization Code, Client Credentials, ROPC)
+  - LDAP / Active Directory
+- For each scheme, UAP shall handle the entire flow, including token issuance, validation, and necessary redirects.
+- The system shall rely on the host-provided API for the final credential validation step within any relevant flow.
+- Configuration for each scheme must be clearly documented and validated.
 
-#### 3.1.2 Multi-Source Data Connectivity (FR-AUTH-002)
-**Description**: System shall connect to various data sources within the host application for user authentication
-
-**User Stories**:
-- As a developer, I want UAP to connect to my PostgreSQL user and role tables
-- As a developer, I want UAP to authenticate users via my existing user management APIs
-- As a developer, I want to configure connections to multiple microservices within my application
-- As a developer, I want UAP to handle multi-tenant data access based on my application's tenancy model
-
-**Acceptance Criteria**:
-- Support database connectivity (PostgreSQL, MySQL, MongoDB, SQL Server, Oracle) with user and role table access
-- Support API-based authentication with configurable endpoints for user and role information
-- Support connections to multiple microservices within the same host application
-- Support multi-tenant data access patterns (database-per-tenant, schema-per-tenant, row-level security)
-- Implement connection pooling and error handling for database connections
-- Support read-only database connections for security
-- Handle data source failover and retry logic within host application architecture
-- Support both user table + role table database approach OR user/role API approach
 
 #### 3.1.3 Flexible Authentication Flows (FR-AUTH-003)
 **Description**: System shall support various flexible authentication flow configurations
@@ -237,13 +213,13 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 
 **User Stories**:
 - As a developer, I want to monitor UAP service health
-- As a developer, I want to check database connectivity status
+- As a developer, I want to check the connectivity status of the host's authentication API.
 - As an ops engineer, I want to monitor authentication performance
 - As an ops engineer, I want to receive alerts for service issues
 
 **Acceptance Criteria**:
 - Provide health check endpoints for service status
-- Monitor database/API connectivity for each configured host
+- Monitor the health and responsiveness of the configured host API endpoints.
 - Provide authentication performance metrics
 - Support custom health check callbacks
 - Implement alerting for service degradation
@@ -367,7 +343,6 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 ### 4.5 Integration Requirements
 
 #### 4.5.1 Compatibility (NFR-INT-001)
-- **Database Compatibility**: Support major databases (PostgreSQL, MySQL, MongoDB, etc.)
 - **API Compatibility**: RESTful API design with OpenAPI specification
 - **Framework Agnostic**: Work with any host application framework
 - **Cloud Native**: Container and Kubernetes ready
@@ -445,12 +420,11 @@ UAP runs as middleware in host application's request pipeline
 
 #### 6.1.1 Platform Constraints
 - **Programming Language**: Python 3.9+ with FastAPI framework
-- **Database Support**: PostgreSQL, MySQL, MongoDB, SQL Server, Oracle
 - **Deployment**: Docker containers with Kubernetes support
 - **Dependencies**: Minimal external dependencies for lightweight deployment
 
 #### 6.1.2 Integration Constraints
-- **Data Access**: Read-only access to host application databases recommended
+- **Data Access**: UAP shall not have direct access to the host application's database. All data exchange must occur over the secure, host-provided API.
 - **Network**: UAP and host application must have network connectivity
 - **Authentication Schema**: Support for common authentication patterns only
 - **Session Storage**: Redis recommended for session caching
@@ -496,49 +470,8 @@ UAP runs as middleware in host application's request pipeline
 
 ### 7.1 Host Application Integration
 
-#### 7.1.1 Database Integration Interface
-**Description**: Direct database connectivity for user and role data authentication
-
-**Configuration Parameters**:
-```json
-{
-  "database": {
-    "type": "postgresql|mysql|mongodb|sqlserver|oracle",
-    "host": "database.example.com",
-    "port": 5432,
-    "database": "app_database",
-    "username": "readonly_user",
-    "password": "encrypted_password",
-    "ssl": true,
-    "connection_pool": {
-      "min_connections": 5,
-      "max_connections": 20
-    }
-  },
-  "authentication": {
-    "user_table": "users",
-    "role_table": "roles",
-    "user_role_table": "user_roles",
-    "username_field": "email",
-    "password_field": "password_hash",
-    "user_id_field": "id",
-    "role_id_field": "role_id",
-    "status_field": "status",
-    "active_status_values": ["active", "verified"],
-    "tenant_field": "tenant_id",
-    "additional_fields": ["last_login_at", "created_at"]
-  },
-  "multi_tenancy": {
-    "enabled": true,
-    "strategy": "database_per_tenant|schema_per_tenant|row_level_security",
-    "tenant_identifier_source": "subdomain|header|parameter",
-    "tenant_field": "tenant_id"
-  }
-}
-```
-
-#### 7.1.2 API Integration Interface
-**Description**: API-based authentication for host applications with microservice architecture
+#### 7.1.1 API Integration Interface
+**Description**: UAP integrates with the host application exclusively through a secure, host-provided API.
 
 **Configuration Parameters**:
 ```json
@@ -604,6 +537,7 @@ POST /api/v1/config/test
 GET /api/v1/health
 GET /api/v1/metrics
 GET /api/v1/status/{app_id}
+GET /api/v1/status/{app_id}/host-connectivity
 ```
 
 ### 7.3 Middleware Integration Points
@@ -636,8 +570,8 @@ GET /api/v1/status/{app_id}
 
 #### 8.1.2 Authentication Configuration (CONF-AUTH-001)
 **Required Fields**:
-- Authentication Type (database/api/ldap)
-- Data Source Configuration
+- Authentication Scheme (JWT, OAuth2, LDAP, etc.)
+- Host API Configuration (Endpoint URLs, Security Tokens)
 - Authentication Fields Mapping 
 - Password Validation Rules
 - Session Configuration
@@ -764,27 +698,7 @@ GET /api/v1/status/{app_id}
 
 ### 8.3 Integration Configuration Templates
 
-#### 8.3.1 Single-Tenant Web Application
-```json
-{
-  "template": "single_tenant_web_app",
-  "authentication": {
-    "data_source": "database",
-    "fields": ["email", "password"],
-    "session_type": "jwt",
-    "remember_me": true
-  },
-  "security": {
-    "rate_limit": "10/minute",
-    "lockout_attempts": 5
-  },
-  "multi_tenancy": {
-    "enabled": false
-  }
-}
-```
-
-#### 8.3.2 Multi-Tenant SaaS Application  
+#### 8.3.1 Multi-Tenant SaaS Application
 ```json
 {
   "template": "multi_tenant_saas",
@@ -1017,7 +931,7 @@ For organizations that require assistance or prefer a managed solution, UAP shal
 
 #### 10.1.1 Setup and Configuration
 - [ ] Complete integration setup in < 30 minutes
-- [ ] Successful authentication against host application database
+- [ ] Successful authentication via the host application's validation API.
 - [ ] Configuration validation with clear error messages
 - [ ] Test authentication flow working correctly
 
@@ -1058,12 +972,6 @@ For organizations that require assistance or prefer a managed solution, UAP shal
 
 ### 10.3 Integration Testing Scenarios
 
-#### 10.3.1 Database Integration Tests
-- [ ] PostgreSQL integration with standard schema
-- [ ] MySQL integration with custom fields
-- [ ] MongoDB integration with document structure
-- [ ] Connection failure handling
-- [ ] Query timeout handling
 
 #### 10.3.2 API Integration Tests
 - [ ] REST API authentication integration
@@ -1146,29 +1054,6 @@ def login(username, password):
 
 ### 11.2 Configuration-Driven Approach
 
-#### 11.2.1 Minimal Configuration Example
-```yaml
-# uap-config.yaml
-app_id: my_application
-data_source:
-  type: database
-  connection:
-    host: db.myapp.com
-    database: users_db
-    username: readonly_user
-    password: ${DB_PASSWORD}
-    
-authentication:
-  fields:
-    identifier: email
-    password: password_hash
-  hashing:
-    algorithm: bcrypt
-    
-session:
-  expiry: 3600
-  single_device: true
-```
 
 #### 11.2.2 API-Based Configuration Example
 ```yaml
@@ -1198,5 +1083,159 @@ middleware:
 ## Conclusion
 
 The Universal Authentication Platform (UAP) provides a comprehensive, configuration-driven authentication microservice that eliminates the need for organizations to develop authentication code. By focusing purely on authentication logic while leaving user management and business logic to host applications, UAP offers a clean, scalable solution that integrates seamlessly into existing application stacks.
+
+---
+
+## 12. Appendices
+
+### 12.1 Responsibilities Matrix (Host vs UAP)
+
+| Capability | Host Application | UAP |
+|---|---|---|
+| User data ownership and storage | Owns and stores user data (DB, AD/LDAP) | None (no direct DB access) |
+| Primary credential validation | Validates via host-provided API | Calls host API; does not validate directly against DB |
+| Authentication scheme orchestration | Provides scheme-specific parameters (e.g., OAuth client IDs, AD endpoints) | Orchestrates OAuth2/JWT/LDAP flows, handles redirects, token issuance/validation |
+| Security middleware (rate limit, CAPTCHA, IP/device checks) | Optional configuration | Executes middleware pipeline pre/post authentication |
+| Multi-Factor Authentication (MFA) | Policy input (roles/contexts) | Implements MFA enrollment/challenges (TOTP/SMS/email/WebAuthn) |
+| Session and token lifecycle | Consumption of tokens | Issues, rotates, refreshes, revokes; single-device enforcement; remember-me |
+| Audit logging and compliance reports | Consumes logs/reports | Produces detailed audit logs and compliance reports |
+| Configuration management | Provides config via UAP management API | Validates, versions, and enforces configuration |
+| Monitoring | Monitors host API availability internally | Exposes health/metrics and host-connectivity status endpoints |
+| Data privacy and residency | Controls where user data resides | Deployable per region; minimizes data processed, no password storage |
+
+---
+
+### 12.2 Host Credential Validation API – OpenAPI Example
+
+This is a normative example of the host-provided API that UAP will call to validate primary credentials. Security here is service-to-service (e.g., API key, mTLS) and is distinct from end-user authentication.
+
+```yaml
+openapi: 3.0.3
+info:
+  title: Host Credential Validation API
+  version: "1.0.0"
+paths:
+  /api/uap/validate-credentials:
+    post:
+      summary: Validate user credentials
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier:
+                  type: string
+                  description: Username/email/phone per contract
+                password:
+                  type: string
+                  format: password
+                tenant_id:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+                  user_id:
+                    type: string
+                    nullable: true
+                  roles:
+                    type: array
+                    items:
+                      type: string
+                    nullable: true
+                  error:
+                    type: string
+                    nullable: true
+        "401":
+          description: Unauthorized (missing/invalid S2S credentials)
+        "429":
+          description: Too Many Requests
+        "5XX":
+          description: Server error
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-UAP-API-Key
+```
+
+Notes:
+- The host may enrich the response with roles/claims if desired; otherwise, UAP can call a separate user-info endpoint if configured.
+- The identifier field must be agreed during configuration (email/username/phone/custom).
+
+---
+
+### 12.3 UAP Monitoring Endpoint – Host Connectivity
+
+UAP exposes a dedicated endpoint for checking connectivity to the host-provided API.
+
+```
+GET /api/v1/status/{app_id}/host-connectivity
+```
+
+Response (200 OK):
+```json
+{
+  "app_id": "my_app",
+  "host_api": {
+    "reachable": true,
+    "latency_ms": 42,
+    "last_checked_at": "2025-08-07T03:12:45Z"
+  },
+  "details": {
+    "endpoint": "https://host.example.com/api/uap/validate-credentials",
+    "auth_method": "api_key",
+    "errors": []
+  }
+}
+```
+
+Behavior:
+- Performs a lightweight, non-credentialled or synthetic check (e.g., HEAD or minimal POST to a health-friendly host endpoint).
+- Implements timeouts and circuit breaker semantics; returns reachability and latency.
+- Does not transmit real user credentials.
+
+---
+
+### 12.4 Decision Matrix – Alternatives to Credential Validation API
+
+This appendix summarizes common alternatives if a host prefers not to expose a traditional “validate-credentials” endpoint. All options remain service-to-service (machine-auth) and keep UAP as the owner of end-user authentication flows.
+
+1) One-way Hash Verifier (verifyHash)
+- Description: Host exposes an endpoint that accepts a plaintext password and returns whether it matches the stored hash, without revealing any user data.
+- Pros: Password verification logic and hashing secrets never leave the host boundary; minimal surface area.
+- Cons: Still requires an endpoint; careful rate limiting and abuse protection needed.
+- S2S Security: API key, mTLS, private networking, IP allow-list.
+
+2) AD/LDAP via Application Gateway
+- Description: UAP connects to AD/LDAP through a gateway or proxy controlled by the host (e.g., via LDAPS or an app gateway that enforces policies).
+- Pros: No new app-level endpoint; leverages existing directory infrastructure; strong enterprise fit.
+- Cons: Gateway/proxy setup and operations; requires robust network policies and observability.
+- S2S Security: mTLS, private networking, firewall controls.
+
+3) Private Networking + mTLS (Minimal Control Plane)
+- Description: Place the host’s validation surface on a private network (VPC/VNet/mesh) and allow UAP access only via mTLS and network policy—no bespoke “auth mechanism.”
+- Pros: Near-zero app code; shifts trust to infra policy; highly secure in enterprise environments.
+- Cons: Requires cloud/network engineering; may increase infra coupling.
+- S2S Security: mTLS certificates, network ACLs, service mesh policy.
+
+Selection guidance
+- Start simple with an API key + IP allow-list if acceptable.
+- Prefer mTLS/private networking for enterprise environments and stronger assurance.
+- Use AD/LDAP gateway for directory-backed identity with minimal code changes.
 
 ---
