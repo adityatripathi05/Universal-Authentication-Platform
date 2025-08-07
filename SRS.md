@@ -167,11 +167,12 @@ Host Application Components <-> UAP Package <-> Host Application's Data Sources
 - As a developer, I require the ability to customize authentication responses to suit our application's needs
 
 **Acceptance Criteria**:
-- Compatibility with username/password and token-based authentication (e.g., JWT)
-- Configurable session management, including extended durations for "remember me"
-- Password reset initiation and handling delegated to host application
-- Customizable responses from UAP's authentication APIs
-- Configurable error messaging and status codes
+- Compatibility with username/password and token-based authentication (e.g., JWT).
+- Configurable session management, including extended durations for "remember me".
+- The "Remember Me" feature shall be implemented using a secure, long-lived refresh token stored in an HTTP-only cookie. This refresh token will be used to issue new, short-lived session tokens.
+- Password reset initiation and handling delegated to host application.
+- Customizable responses from UAP's authentication APIs.
+- Configurable error messaging and status codes.
 
 ### 3.2 Session Management
 

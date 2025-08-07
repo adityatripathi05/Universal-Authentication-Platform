@@ -580,7 +580,11 @@ class SessionManager:
             return False
     
     async def refresh_session(self, token: str) -> Optional[SessionToken]:
-        """Refresh an existing session"""
+        """
+        Refresh an existing session. This is the core mechanism for the "Remember Me"
+        functionality, where a long-lived refresh token is exchanged for a new,
+        short-lived session token.
+        """
         session_info = await self.validate_session(token)
         if not session_info:
             return None
@@ -1132,7 +1136,8 @@ async def refresh_session(
     session_manager = Depends(get_session_manager)
 ):
     """
-    Refresh session token
+    Refresh session token. This endpoint is used to implement the "Remember Me"
+    feature by exchanging a long-lived refresh token for a new session token.
     """
     token = credentials.credentials
     
